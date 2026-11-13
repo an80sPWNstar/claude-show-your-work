@@ -112,6 +112,8 @@ export const register: Register = on => {
       state.isForced = /^(1|true|on|yes)$/i.test((await $.env.get('CLAUDE_CODE_FORCE_TERMINAL_IMAGES')) ?? '')
       // iTerm2 and the Herdr app draw pictures from bytes only, never from a file they're named.
       if (terminal === 'iterm2' || terminal === 'herdr_app') state.sendBytes = true
+      // A terminal not known here that draws from bytes only: SHOW_YOUR_WORK_SEND_BYTES=1.
+      if (/^(1|true|on|yes)$/i.test((await $.env.get('SHOW_YOUR_WORK_SEND_BYTES')) ?? '')) state.sendBytes = true
       state.inTmux = !!(await $.env.get('TMUX')) || /^tmux/i.test(term)
       state.isDebug = /^(1|true|on|yes)$/i.test((await $.env.get('SHOW_YOUR_WORK_DEBUG')) ?? '')
       if (state.isDebug) $.clock.every(1000, () => void flushDebug($))
@@ -134,7 +136,7 @@ export const register: Register = on => {
         claude_code_version: (await $.session.version().catch(() => ({ base: '' }))).base ?? '',
         terminal,
         has_ffmpeg: await exists($, state.ffmpeg),
-        os: state.isMac ? 'macos' : 'linux',
+        os: state.isMac ? 'macos' : state.isWindows ? 'windows' : 'linux',
       }
       // Every install sees the welcome and tour once, an update included:
       // installs from before 0.6.2 never had one. 0.6.0 stored 'welcomed' both

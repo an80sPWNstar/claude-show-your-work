@@ -91,7 +91,9 @@ export const OPEN_SH = [
   'done',
   'exit 0',
 ].join('\n')
-const openArgv = (target: string) => (state.isMac ? ['open', target] : ['sh', '-c', OPEN_SH, 'sh', 'xdg-open', target])
+// Windows: cmd's start opens it with the default app ('' is start's window title).
+const openArgv = (target: string) =>
+  state.isMac ? ['open', target] : state.isWindows ? ['cmd', '/c', 'start', '', target.replace(/\//g, '\\')] : ['sh', '-c', OPEN_SH, 'sh', 'xdg-open', target]
 
 // What went wrong opening something, in words: from xdg-open's exit codes
 // (2 no such file, 3 no app or tool for it, 4 the app failed) and from macOS
