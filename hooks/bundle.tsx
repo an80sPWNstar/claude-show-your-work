@@ -128,7 +128,7 @@ export async function measureCells($: EngineInterface) {
   // cells, a picture of the wrong shape until the next resize.
   if (!r) return void event('measure', { state: 'cancelled', kept: state.cell && `${state.cell.width.toFixed(2)}x${state.cell.height.toFixed(2)}` })
   const scale = Number(s?.stdout.trim()) || 1
-  state.cell = r.exitCode === 0 ? cellOf(r.stdout, scale) : null
+  state.cell = (r.exitCode === 0 ? cellOf(r.stdout, scale) : null) ?? state.cellGiven
   const [rows, columns] = (r.exitCode === 0 ? r.stdout : '').trim().split(/\s+/).map(Number)
   state.termSize = rows && columns ? { columns, rows } : null
   event('measure', { state: 'measured', tty: r.stdout.trim(), scale, cell: state.cell && `${state.cell.width.toFixed(2)}x${state.cell.height.toFixed(2)}` })
@@ -4402,6 +4402,9 @@ export const state = {
   cell: null as Cell | null,
   // The terminal's size in cells, from the same measure.
   termSize: null as { columns: number; rows: number } | null,
+  // SHOW_YOUR_WORK_CELL=8x17: the cell in pixels where the terminal reports
+  // none (Windows has no tty to ask), so the box matches the picture.
+  cellGiven: null as Cell | null,
   // The terminal reads the file itself: a path crosses, not the picture. Sending
   // bytes (b6b8b14) moved ~400 KB a frame and froze playback.
   // Over ssh the terminal is on another machine and can't read the file, so the
@@ -5343,6 +5346,8 @@ export function setUp($: EngineInterface): Promise<void> {
     state.isFarFromSpeakers = !!(sshConnection || sshTty) || kind === 'bg'
     const engine = await Promise.resolve().then(() => $.session.version()).catch(() => null)
     state.canColourButtons = !!engine && isAtLeast(engine.base ?? engine.version, '2.1.295')
+    const given = /^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/.exec(((await Promise.resolve().then(() => $.env.get('SHOW_YOUR_WORK_CELL')).catch(() => '')) ?? '').trim())
+    if (given) state.cellGiven = { width: Number(given[1]), height: Number(given[2]) }
     await Promise.resolve().then(() => measureCells($)).catch(() => undefined)
   })())
 }

@@ -45,6 +45,9 @@ export const state = {
   cell: null as Cell | null,
   // The terminal's size in cells, from the same measure.
   termSize: null as { columns: number; rows: number } | null,
+  // SHOW_YOUR_WORK_CELL=8x17: the cell in pixels where the terminal reports
+  // none (Windows has no tty to ask), so the box matches the picture.
+  cellGiven: null as Cell | null,
   // The terminal reads the file itself: a path crosses, not the picture. Sending
   // bytes (b6b8b14) moved ~400 KB a frame and froze playback.
   // Over ssh the terminal is on another machine and can't read the file, so the

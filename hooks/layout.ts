@@ -123,7 +123,7 @@ export async function measureCells($: EngineInterface) {
   // cells, a picture of the wrong shape until the next resize.
   if (!r) return void event('measure', { state: 'cancelled', kept: state.cell && `${state.cell.width.toFixed(2)}x${state.cell.height.toFixed(2)}` })
   const scale = Number(s?.stdout.trim()) || 1
-  state.cell = r.exitCode === 0 ? cellOf(r.stdout, scale) : null
+  state.cell = (r.exitCode === 0 ? cellOf(r.stdout, scale) : null) ?? state.cellGiven
   const [rows, columns] = (r.exitCode === 0 ? r.stdout : '').trim().split(/\s+/).map(Number)
   state.termSize = rows && columns ? { columns, rows } : null
   event('measure', { state: 'measured', tty: r.stdout.trim(), scale, cell: state.cell && `${state.cell.width.toFixed(2)}x${state.cell.height.toFixed(2)}` })
