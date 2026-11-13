@@ -5,7 +5,7 @@ import type { Register } from 'claude-code'
 
 import type { Check, KeyChange, Overlay, Shown, Summary } from '../types'
 
-import { state } from './state'
+import { runTool, state } from './state'
 import { clock, paneSize } from './layout'
 import type { PaneProps } from './layout'
 import { debug, diagnosis, flushDebug } from './diagnostics'
@@ -159,7 +159,7 @@ export const register: Register = on => {
     })().catch(() => undefined)
     // Frames and converted pictures a week old go; a window that scrolls back
     // into view cuts its frames again from the source.
-    void $.process.run(['sh', '-c', CLEAN_SH, state.TMP]).then(() => trimFrames($))
+    void runTool($, ['sh', '-c', CLEAN_SH, state.TMP]).then(() => trimFrames($))
     await $.command.register({
       name: 'show-your-work',
       description: 'Settings for show-your-work; /show-your-work tour for the tour, /show-your-work update to check for updates, /show-your-work diagnose for recent problems',
@@ -278,7 +278,7 @@ export const register: Register = on => {
       shownById.set(id, shown)
       // Saved beside the history too, so the row still draws after a reload
       // wipes the module's memory.
-      await $.process.run(['sh', '-c', 'printf "%s" "$1" > "$0"', `${await storeOf($)}/${id}.shown`, JSON.stringify(shown)]).catch(() => undefined)
+      await runTool($, ['sh', '-c', 'printf "%s" "$1" > "$0"', `${await storeOf($)}/${id}.shown`, JSON.stringify(shown)]).catch(() => undefined)
 
       track('img_command', { kind: shown.frames ? 'video' : 'image' })
       return { text: `Showing ${shown.title}.\n${MARK}#${id}` }
@@ -298,7 +298,7 @@ export const register: Register = on => {
       const shown = await prepare($, arg, `Page · ${arg.split('/').pop()}`)
       const id = keyOf(`${arg}|${await $.clock.now()}`).slice(0, 10)
       shownById.set(id, shown)
-      await $.process.run(['sh', '-c', 'printf "%s" "$1" > "$0"', `${await storeOf($)}/${id}.shown`, JSON.stringify(shown)]).catch(() => undefined)
+      await runTool($, ['sh', '-c', 'printf "%s" "$1" > "$0"', `${await storeOf($)}/${id}.shown`, JSON.stringify(shown)]).catch(() => undefined)
 
       track('page_command', { kind: 'image' })
       return { text: `Previewing ${shown.title}. Open page opens it in your browser.\n${MARK}#${id}` }
@@ -318,7 +318,7 @@ export const register: Register = on => {
       const shown = await prepare($, arg)
       const id = keyOf(`${arg}|${await $.clock.now()}`).slice(0, 10)
       shownById.set(id, shown)
-      await $.process.run(['sh', '-c', 'printf "%s" "$1" > "$0"', `${await storeOf($)}/${id}.shown`, JSON.stringify(shown)]).catch(() => undefined)
+      await runTool($, ['sh', '-c', 'printf "%s" "$1" > "$0"', `${await storeOf($)}/${id}.shown`, JSON.stringify(shown)]).catch(() => undefined)
 
       track('audio_command', { kind: shown.frames ? 'audio' : 'image' })
       return { text: `Showing ${shown.title}.${soundUsable() ? ' Press Play to hear it.' : ''}\n${MARK}#${id}` }
@@ -338,7 +338,7 @@ export const register: Register = on => {
       const shown = await prepareDocument($, arg, arg.split('/').pop()!)
       const id = keyOf(`${arg}|${await $.clock.now()}`).slice(0, 10)
       shownById.set(id, shown)
-      await $.process.run(['sh', '-c', 'printf "%s" "$1" > "$0"', `${await storeOf($)}/${id}.shown`, JSON.stringify(shown)]).catch(() => undefined)
+      await runTool($, ['sh', '-c', 'printf "%s" "$1" > "$0"', `${await storeOf($)}/${id}.shown`, JSON.stringify(shown)]).catch(() => undefined)
 
       track('doc_command', { kind: 'document' })
       return { text: `Showing ${shown.title} (${shown.pages?.count ?? 1} page${(shown.pages?.count ?? 1) === 1 ? '' : 's'}).\n${MARK}#${id}` }
@@ -453,7 +453,7 @@ export const register: Register = on => {
       // Claude gets one short line; the drawing data stays out of its context.
       let mark = JSON.stringify(shown)
       if (kept.id) {
-        const saved = await $.process.run(['sh', '-c', 'printf "%s" "$1" > "$0"', `${await storeOf($)}/${kept.id}.shown`, mark]).catch(() => null)
+        const saved = await runTool($, ['sh', '-c', 'printf "%s" "$1" > "$0"', `${await storeOf($)}/${kept.id}.shown`, mark]).catch(() => null)
         if (saved && saved.exitCode === 0) {
           shownById.set(kept.id, shown)
           mark = `#${kept.id}`
@@ -461,7 +461,7 @@ export const register: Register = on => {
       }
       return { result: `${opening}${hint}\n${MARK}${mark}` }
     } catch (err) {
-      if (copied) void $.process.run(['rm', '-f', '--', copied, copied.replace(/\.[^./]+$/, '.json')]).catch(() => undefined)
+      if (copied) void runTool($, ['rm', '-f', '--', copied, copied.replace(/\.[^./]+$/, '.json')]).catch(() => undefined)
       const n = noticeOf(err, expand(input.path ?? '', state.cwd, state.home), state.home)
       notices.set(e.tool_use_id, n)
       track('show_failed', { from: String((e as { tool?: string }).tool ?? '').endsWith('video') ? 'show_video' : String((e as { tool?: string }).tool ?? '').endsWith('audio') ? 'show_audio' : String((e as { tool?: string }).tool ?? '').endsWith('document') ? 'show_document' : 'show_image', reason: REASONS[n.kind] })
