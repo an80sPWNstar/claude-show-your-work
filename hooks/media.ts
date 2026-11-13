@@ -46,6 +46,8 @@ const MAX_FPS = 12
 // separators, not escapes, and it is whole on its own.
 const WINDOWS_PATH = /^([A-Za-z]:[\\/]|\\\\)/
 export const isAbsolutePath = (p: string) => p.startsWith('/') || WINDOWS_PATH.test(p)
+// Windows hands a resolved path back with backslashes; they become C:/x/y.
+export const slashed = (p: string) => (WINDOWS_PATH.test(p) ? p.replace(/\\/g, '/') : p)
 
 // A typed or dragged-in path: quotes, backslash-escaped spaces and ~ allowed.
 // On Windows it comes back in the mixed form C:/x/y.
@@ -1285,7 +1287,7 @@ export async function pairReady($: EngineInterface, shown: Shown, i: number, sit
 export async function prepare($: EngineInterface, raw: string, title?: string, key?: string): Promise<Shown> {
   const path = expand(raw, state.cwd, state.home)
   const stat = await $.fs.stat(path, { resolve: true })
-  const real = stat.realPath ?? path
+  const real = slashed(stat.realPath ?? path)
   const name = title ?? real.split('/').pop()!
   if (VIDEO.test(real)) return prepareVideo($, real, name, key ?? (await identityOf($, real)))
   if (isAudio(real)) return prepareAudio($, real, name, key ?? (await identityOf($, real)))
