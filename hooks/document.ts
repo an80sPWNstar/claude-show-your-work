@@ -6,7 +6,7 @@ import type { EngineInterface } from 'claude-code'
 
 import type { Shown } from '../types'
 
-import { state } from './state'
+import { runTool, state } from './state'
 
 export const DOCUMENT = /\.(pdf|md|markdown|mmd|mermaid)$/i
 export const isDocument = (path: string) => DOCUMENT.test(path)
@@ -227,7 +227,7 @@ export async function prepareDocument($: EngineInterface, real: string, title: s
   // the other writes (the attempt map in sound.ts is the same pattern).
   const attempt = docSession + Date.now().toString(36) + (docAttempt += 1).toString(36)
 
-  const facts = await $.process.run(pdfInfoArgv(state.pdfinfo, printed ? `${pdf}` : real))
+  const facts = await runTool($, pdfInfoArgv(state.pdfinfo, printed ? `${pdf}` : real))
   // A printed document has no PDF yet on its first show; the count comes after
   // the print. A PDF file's count is known up front.
   let count = 0
@@ -245,19 +245,19 @@ export async function prepareDocument($: EngineInterface, real: string, title: s
       const partHtml = `${dir}.${attempt}.html`
       const partPdf = `${dir}.${attempt}.part.pdf`
       await $.fs.write(partHtml, documentHtml(text, title, base, mermaidAsset($), /\.(mmd|mermaid)$/i.test(real)))
-      const print = await $.process.run(docPrintArgv(state.chrome, partHtml, partPdf), { timeoutMs: DOC_TIMEOUT_MS })
-      await $.process.run(['rm', '-rf', '--', `${partPdf}.profile`]).catch(() => undefined)
+      const print = await runTool($, docPrintArgv(state.chrome, partHtml, partPdf), { timeoutMs: DOC_TIMEOUT_MS })
+      await runTool($, ['rm', '-rf', '--', `${partPdf}.profile`]).catch(() => undefined)
       if (print.exitCode !== 0) throw new Error(docErrorOf(`the browser could not print it (${print.stderr.trim().slice(0, 120)})`, name).message)
       if (domHasError(print.stdout) || !domIsReady(print.stdout)) throw new Error(docErrorOf('mermaid', name).message)
-      if ((await $.process.run(['mv', '-f', partPdf, pdf])).exitCode !== 0) throw new Error(docErrorOf('could not be finished', name).message)
-      if ((await $.process.run(['mv', '-f', partHtml, html])).exitCode !== 0) throw new Error(docErrorOf('could not be finished', name).message)
-      const printedFacts = await $.process.run(pdfInfoArgv(state.pdfinfo, pdf))
+      if ((await runTool($, ['mv', '-f', partPdf, pdf])).exitCode !== 0) throw new Error(docErrorOf('could not be finished', name).message)
+      if ((await runTool($, ['mv', '-f', partHtml, html])).exitCode !== 0) throw new Error(docErrorOf('could not be finished', name).message)
+      const printedFacts = await runTool($, pdfInfoArgv(state.pdfinfo, pdf))
       const printedCount = docPageCount(printedFacts.stdout)
       if (printedFacts.exitCode !== 0 || printedCount < 1) throw new Error(docErrorOf('was printed with no pages', name).message)
       if (printedCount > DOC_MAX_PAGES) throw new Error(docErrorOf('pages', name).message)
       count = printedCount
     }
-    await $.process.run(['mkdir', '-p', dir])
+    await runTool($, ['mkdir', '-p', dir])
     const moved1 = await rasterPage($, pdf, dir, 1)
     if (moved1 !== first) throw new Error(docErrorOf('poppler could not rasterize page 1', name).message)
   }
@@ -295,11 +295,11 @@ export async function docPage($: EngineInterface, media: Shown, page: number): P
 // Renders one page to a side name and moves it into place whole: a render
 // that dies midway never leaves a half-written page behind as a cached page.
 async function rasterPage($: EngineInterface, pdf: string, dir: string, page: number): Promise<string | null> {
-  await $.process.run(['mkdir', '-p', dir]).catch(() => undefined)
+  await runTool($, ['mkdir', '-p', dir]).catch(() => undefined)
   const final = `${dir}/f${String(page).padStart(5, '0')}.png`
   const part = `${dir}/p${String(page).padStart(5, '0')}`
-  const made = await $.process.run(pdfPageArgv(state.pdftoppm, pdf, dir, page), { timeoutMs: POPPLER_TIMEOUT_MS })
+  const made = await runTool($, pdfPageArgv(state.pdftoppm, pdf, dir, page), { timeoutMs: POPPLER_TIMEOUT_MS })
   if (made.exitCode !== 0) return null
-  if ((await $.process.run(['mv', '-f', `${part}.png`, final])).exitCode !== 0) return null
+  if ((await runTool($, ['mv', '-f', `${part}.png`, final])).exitCode !== 0) return null
   return (await isGone($, final)) ? null : final
 }

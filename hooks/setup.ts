@@ -2,7 +2,7 @@
 // ffmpeg, ssh and the terminal's cell.
 import type { EngineInterface } from 'claude-code'
 
-import { state } from './state'
+import { findGitBin, runTool, state } from './state'
 import { measureCells } from './layout'
 
 export const PICK_TMP = [
@@ -20,10 +20,11 @@ export const isAtLeast = (version: string, least: string) => {
 // mid-session can bring the module back without a session start.
 export function setUp($: EngineInterface): Promise<void> {
   // Each step on its own: one that fails leaves the defaults, never a throw.
-  const tryRun = (argv: string[], options?: { timeoutMs: number }) => Promise.resolve().then(() => $.process.run(argv, options)).catch(() => null)
+  const tryRun = (argv: string[], options?: { timeoutMs: number }) => Promise.resolve().then(() => runTool($, argv, options)).catch(() => null)
   return (state.setup ??= (async () => {
     // After a reload the session start doesn't run again: ask the session
     // where it runs, so history is read from the right folder.
+    state.gitBin = await findGitBin($)
     if (!state.cwd) state.cwd = (await Promise.resolve().then(() => $.session.cwd()).catch(() => '')) || ((await tryRun(['pwd']))?.stdout ?? '').trim()
     const picked = await tryRun(['sh', '-c', PICK_TMP])
     if (picked && picked.exitCode === 0 && picked.stdout.trim().startsWith('/')) state.TMP = picked.stdout.trim()
@@ -36,7 +37,7 @@ export function setUp($: EngineInterface): Promise<void> {
     const found = (key: string) => env.stdout.split('\n').find(l => l.startsWith(`${key}=`))?.slice(key.length + 1).trim() ?? ''
     // Git for Windows' sh names things /c/Users/.../ffmpeg: one cygpath call
     // turns every path into C:/Users/.../ffmpeg.exe, which Node can stat and run.
-    state.isWindows = /^(MINGW|MSYS|CYGWIN)/i.test(found('os'))
+    state.isWindows = !!state.gitBin || /^(MINGW|MSYS|CYGWIN)/i.test(found('os'))
     const mixed = new Map<string, string>()
     if (state.isWindows) {
       const keys = ['home', 'ff', 'fp', 'fy', 'cl', 'ch', 'pp', 'pi']

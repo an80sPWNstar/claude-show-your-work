@@ -3,7 +3,7 @@
 import type { EngineInterface } from 'claude-code'
 
 import { event } from './diagnostics'
-import { settings, state } from './state'
+import { runTool, settings, state } from './state'
 
 // The window's fill: a step lighter than a dark terminal, so it reads as one panel.
 const PANEL = '#2c2e35'
@@ -112,8 +112,8 @@ export function cellOf(stdout: string, scale = 1): Cell | null {
 const SCALE_SH = `osascript -l JavaScript -e 'ObjC.import("AppKit"); $.NSScreen.mainScreen.backingScaleFactor'`
 export async function measureCells($: EngineInterface) {
   const [r, s] = await Promise.all([
-    $.process.run(['sh', '-c', CELL_SH]).catch(() => null),
-    state.isMac ? $.process.run(['sh', '-c', SCALE_SH]).catch(() => null) : null,
+    runTool($, ['sh', '-c', CELL_SH]).catch(() => null),
+    state.isMac ? runTool($, ['sh', '-c', SCALE_SH]).catch(() => null) : null,
   ])
   // A measure Claude Code cancelled (a newer draw replaced the one that asked,
   // as happens many times while a window edge is dragged) says nothing about
