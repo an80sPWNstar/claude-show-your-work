@@ -76,6 +76,8 @@ export function setUp($: EngineInterface): Promise<void> {
     state.isFarFromSpeakers = !!(sshConnection || sshTty) || kind === 'bg'
     const engine = await Promise.resolve().then(() => $.session.version()).catch(() => null)
     state.canColourButtons = !!engine && isAtLeast(engine.base ?? engine.version, '2.1.295')
+    const given = /^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/.exec(((await Promise.resolve().then(() => $.env.get('SHOW_YOUR_WORK_CELL')).catch(() => '')) ?? '').trim())
+    if (given) state.cellGiven = { width: Number(given[1]), height: Number(given[2]) }
     await Promise.resolve().then(() => measureCells($)).catch(() => undefined)
   })())
 }
