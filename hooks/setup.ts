@@ -33,9 +33,24 @@ export function setUp($: EngineInterface): Promise<void> {
     const run = (flag: string) => tryRun(['sh', flag, where], { timeoutMs: 5000 })
     const login = await run('-lc')
     const env = (login?.stdout.includes('os=') ? login : await run('-c')) ?? { stdout: '', stderr: '', exitCode: 1 }
-    const got = (key: string) => env.stdout.split('\n').find(l => l.startsWith(`${key}=`))?.slice(key.length + 1).trim() ?? ''
+    const found = (key: string) => env.stdout.split('\n').find(l => l.startsWith(`${key}=`))?.slice(key.length + 1).trim() ?? ''
+    // Git for Windows' sh names things /c/Users/.../ffmpeg: one cygpath call
+    // turns every path into C:/Users/.../ffmpeg.exe, which Node can stat and run.
+    state.isWindows = /^(MINGW|MSYS|CYGWIN)/i.test(found('os'))
+    const mixed = new Map<string, string>()
+    if (state.isWindows) {
+      const keys = ['home', 'ff', 'fp', 'fy', 'cl', 'ch', 'pp', 'pi']
+      const toMixed = 'for a; do if [ -n "$a" ]; then [ -f "$a.exe" ] && a="$a.exe"; cygpath -m "$a"; else echo; fi; done'
+      const r = await tryRun(['sh', '-c', toMixed, 'sh', state.TMP, ...keys.map(found)])
+      const lines = r && r.exitCode === 0 ? r.stdout.split('\n').map(l => l.trim()) : []
+      if (lines[0]) state.TMP = lines[0]
+      keys.forEach((k, i) => lines[i + 1] && mixed.set(k, lines[i + 1]!))
+      state.cwd = state.cwd.replace(/\\/g, '/')
+    }
+    // Without cygpath's answer, /c/x is still read as C:/x.
+    const got = (key: string) => mixed.get(key) ?? (state.isWindows ? found(key).replace(/^\/([A-Za-z])(?=\/|$)/, (_, d: string) => `${d.toUpperCase()}:`) : found(key))
     state.home = got('home') || ((await Promise.resolve().then(() => $.env.get('HOME')).catch(() => '')) ?? '')
-    state.isMac = got('os') !== 'Linux'
+    state.isMac = !state.isWindows && got('os') !== 'Linux'
     state.ffmpeg = got('ff') || (state.isMac ? '/opt/homebrew/bin/ffmpeg' : '/usr/bin/ffmpeg')
     state.ffprobe = got('fp') || (state.isMac ? '/opt/homebrew/bin/ffprobe' : '/usr/bin/ffprobe')
     state.claudePath = got('cl')

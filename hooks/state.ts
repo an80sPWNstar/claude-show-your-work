@@ -30,6 +30,9 @@ export const state = {
   // macOS unless the session says Linux: every Linux path below is a branch
   // beside the macOS one, which stays as it was.
   isMac: true,
+  // Windows through Git for Windows' sh (MSYS2): paths are kept in the mixed
+  // form C:/Users/... that Node, the sh tools and Windows programs all read.
+  isWindows: false,
   // Found once, then trusted for the session; while missing it is looked for
   // again on each video, so installing it mid-session works.
   hasVideoTools: false,

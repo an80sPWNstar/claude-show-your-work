@@ -343,13 +343,20 @@ const MAX_FRAMES = 900
 const MAX_STREAMED = 3600
 const MAX_FPS = 12
 
-// A typed or dragged-in path: quotes, backslash-escaped spaces and ~ allowed.
-export function expand(path: string, base: string, homeDir: string): string {
-  let p = path.trim().replace(/^(['"])(.*)\1$/, '$2').replace(/\\(.)/g, '$1')
-  if (p === '~' || p.startsWith('~/')) p = homeDir + p.slice(1)
-  if (p.startsWith('/')) return p
+// A Windows path (C:\x, C:/x or \\server\share): its backslashes are
+// separators, not escapes, and it is whole on its own.
+const WINDOWS_PATH = /^([A-Za-z]:[\\/]|\\\\)/
+export const isAbsolutePath = (p: string) => p.startsWith('/') || WINDOWS_PATH.test(p)
 
-  return `${base.replace(/\/$/, '')}/${p}`
+// A typed or dragged-in path: quotes, backslash-escaped spaces and ~ allowed.
+// On Windows it comes back in the mixed form C:/x/y.
+export function expand(path: string, base: string, homeDir: string): string {
+  const bare = path.trim().replace(/^(['"])(.*)\1$/, '$2')
+  let p = WINDOWS_PATH.test(bare) || state.isWindows ? bare.replace(/\\/g, '/') : bare.replace(/\\(.)/g, '$1')
+  if (p === '~' || p.startsWith('~/')) p = homeDir + p.slice(1)
+  if (isAbsolutePath(p)) return p
+
+  return `${base.replace(/\\/g, '/').replace(/\/$/, '')}/${p}`
 }
 
 // A name with its look-alike spaces made plain: macOS writes a narrow
@@ -413,7 +420,7 @@ export function pngDims(base64: string): { width: number; height: number } | nul
 
 // Finds a pasted image's original file by name with Spotlight (macOS).
 export async function findPasted($: EngineInterface, name: string): Promise<string | null> {
-  if (name.startsWith('/')) return name
+  if (isAbsolutePath(name)) return name
   if (!state.isMac) return null
   const found = await $.process.run(['mdfind', '-name', name])
 
@@ -2601,7 +2608,9 @@ export const OPEN_SH = [
   'done',
   'exit 0',
 ].join('\n')
-const openArgv = (target: string) => (state.isMac ? ['open', target] : ['sh', '-c', OPEN_SH, 'sh', 'xdg-open', target])
+// Windows: cmd's start opens it with the default app ('' is start's window title).
+const openArgv = (target: string) =>
+  state.isMac ? ['open', target] : state.isWindows ? ['cmd', '/c', 'start', '', target.replace(/\//g, '\\')] : ['sh', '-c', OPEN_SH, 'sh', 'xdg-open', target]
 
 // What went wrong opening something, in words: from xdg-open's exit codes
 // (2 no such file, 3 no app or tool for it, 4 the app failed) and from macOS
@@ -4375,6 +4384,9 @@ export const state = {
   // macOS unless the session says Linux: every Linux path below is a branch
   // beside the macOS one, which stays as it was.
   isMac: true,
+  // Windows through Git for Windows' sh (MSYS2): paths are kept in the mixed
+  // form C:/Users/... that Node, the sh tools and Windows programs all read.
+  isWindows: false,
   // Found once, then trusted for the session; while missing it is looked for
   // again on each video, so installing it mid-session works.
   hasVideoTools: false,
@@ -5222,9 +5234,24 @@ export function setUp($: EngineInterface): Promise<void> {
     const run = (flag: string) => tryRun(['sh', flag, where], { timeoutMs: 5000 })
     const login = await run('-lc')
     const env = (login?.stdout.includes('os=') ? login : await run('-c')) ?? { stdout: '', stderr: '', exitCode: 1 }
-    const got = (key: string) => env.stdout.split('\n').find(l => l.startsWith(`${key}=`))?.slice(key.length + 1).trim() ?? ''
+    const found = (key: string) => env.stdout.split('\n').find(l => l.startsWith(`${key}=`))?.slice(key.length + 1).trim() ?? ''
+    // Git for Windows' sh names things /c/Users/.../ffmpeg: one cygpath call
+    // turns every path into C:/Users/.../ffmpeg.exe, which Node can stat and run.
+    state.isWindows = /^(MINGW|MSYS|CYGWIN)/i.test(found('os'))
+    const mixed = new Map<string, string>()
+    if (state.isWindows) {
+      const keys = ['home', 'ff', 'fp', 'fy', 'cl', 'ch', 'pp', 'pi']
+      const toMixed = 'for a; do if [ -n "$a" ]; then [ -f "$a.exe" ] && a="$a.exe"; cygpath -m "$a"; else echo; fi; done'
+      const r = await tryRun(['sh', '-c', toMixed, 'sh', state.TMP, ...keys.map(found)])
+      const lines = r && r.exitCode === 0 ? r.stdout.split('\n').map(l => l.trim()) : []
+      if (lines[0]) state.TMP = lines[0]
+      keys.forEach((k, i) => lines[i + 1] && mixed.set(k, lines[i + 1]!))
+      state.cwd = state.cwd.replace(/\\/g, '/')
+    }
+    // Without cygpath's answer, /c/x is still read as C:/x.
+    const got = (key: string) => mixed.get(key) ?? (state.isWindows ? found(key).replace(/^\/([A-Za-z])(?=\/|$)/, (_, d: string) => `${d.toUpperCase()}:`) : found(key))
     state.home = got('home') || ((await Promise.resolve().then(() => $.env.get('HOME')).catch(() => '')) ?? '')
-    state.isMac = got('os') !== 'Linux'
+    state.isMac = !state.isWindows && got('os') !== 'Linux'
     state.ffmpeg = got('ff') || (state.isMac ? '/opt/homebrew/bin/ffmpeg' : '/usr/bin/ffmpeg')
     state.ffprobe = got('fp') || (state.isMac ? '/opt/homebrew/bin/ffprobe' : '/usr/bin/ffprobe')
     state.claudePath = got('cl')
@@ -5347,6 +5374,8 @@ export const register: Register = on => {
       state.isForced = /^(1|true|on|yes)$/i.test((await $.env.get('CLAUDE_CODE_FORCE_TERMINAL_IMAGES')) ?? '')
       // iTerm2 and the Herdr app draw pictures from bytes only, never from a file they're named.
       if (terminal === 'iterm2' || terminal === 'herdr_app') state.sendBytes = true
+      // A terminal not known here that draws from bytes only: SHOW_YOUR_WORK_SEND_BYTES=1.
+      if (/^(1|true|on|yes)$/i.test((await $.env.get('SHOW_YOUR_WORK_SEND_BYTES')) ?? '')) state.sendBytes = true
       state.inTmux = !!(await $.env.get('TMUX')) || /^tmux/i.test(term)
       state.isDebug = /^(1|true|on|yes)$/i.test((await $.env.get('SHOW_YOUR_WORK_DEBUG')) ?? '')
       if (state.isDebug) $.clock.every(1000, () => void flushDebug($))
@@ -5369,7 +5398,7 @@ export const register: Register = on => {
         claude_code_version: (await $.session.version().catch(() => ({ base: '' }))).base ?? '',
         terminal,
         has_ffmpeg: await exists($, state.ffmpeg),
-        os: state.isMac ? 'macos' : 'linux',
+        os: state.isMac ? 'macos' : state.isWindows ? 'windows' : 'linux',
       }
       // Every install sees the welcome and tour once, an update included:
       // installs from before 0.6.2 never had one. 0.6.0 stored 'welcomed' both

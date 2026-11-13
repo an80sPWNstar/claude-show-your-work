@@ -42,13 +42,20 @@ const MAX_FRAMES = 900
 const MAX_STREAMED = 3600
 const MAX_FPS = 12
 
-// A typed or dragged-in path: quotes, backslash-escaped spaces and ~ allowed.
-export function expand(path: string, base: string, homeDir: string): string {
-  let p = path.trim().replace(/^(['"])(.*)\1$/, '$2').replace(/\\(.)/g, '$1')
-  if (p === '~' || p.startsWith('~/')) p = homeDir + p.slice(1)
-  if (p.startsWith('/')) return p
+// A Windows path (C:\x, C:/x or \\server\share): its backslashes are
+// separators, not escapes, and it is whole on its own.
+const WINDOWS_PATH = /^([A-Za-z]:[\\/]|\\\\)/
+export const isAbsolutePath = (p: string) => p.startsWith('/') || WINDOWS_PATH.test(p)
 
-  return `${base.replace(/\/$/, '')}/${p}`
+// A typed or dragged-in path: quotes, backslash-escaped spaces and ~ allowed.
+// On Windows it comes back in the mixed form C:/x/y.
+export function expand(path: string, base: string, homeDir: string): string {
+  const bare = path.trim().replace(/^(['"])(.*)\1$/, '$2')
+  let p = WINDOWS_PATH.test(bare) || state.isWindows ? bare.replace(/\\/g, '/') : bare.replace(/\\(.)/g, '$1')
+  if (p === '~' || p.startsWith('~/')) p = homeDir + p.slice(1)
+  if (isAbsolutePath(p)) return p
+
+  return `${base.replace(/\\/g, '/').replace(/\/$/, '')}/${p}`
 }
 
 // A name with its look-alike spaces made plain: macOS writes a narrow
@@ -112,7 +119,7 @@ export function pngDims(base64: string): { width: number; height: number } | nul
 
 // Finds a pasted image's original file by name with Spotlight (macOS).
 export async function findPasted($: EngineInterface, name: string): Promise<string | null> {
-  if (name.startsWith('/')) return name
+  if (isAbsolutePath(name)) return name
   if (!state.isMac) return null
   const found = await $.process.run(['mdfind', '-name', name])
 
