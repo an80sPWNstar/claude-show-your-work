@@ -5,7 +5,7 @@ import type { EngineInterface } from 'claude-code'
 import type { KeyChange, Shown } from '../types'
 
 import { runTool, state } from './state'
-import { expand, keyOf, prepare, VIDEO } from './media'
+import { expand, keyOf, prepare, slashed, VIDEO } from './media'
 import { isDocument, prepareDocument } from './document'
 
 export const MARK = 'show-your-work:'
@@ -107,7 +107,7 @@ async function readVersion($: EngineInterface, dir: string, id: string): Promise
 }
 export async function storeVersion($: EngineInterface, raw: string, note: string, title: string | undefined, parent: string | undefined):
   Promise<{ real: string; copy: string; id: string; chain: { path: string; note?: string; id: string }[]; missing?: string }> {
-  const real = (await $.fs.stat(expand(raw, state.cwd, state.home), { resolve: true })).realPath ?? expand(raw, state.cwd, state.home)
+  const real = slashed((await $.fs.stat(expand(raw, state.cwd, state.home), { resolve: true })).realPath ?? expand(raw, state.cwd, state.home))
   const dir = await storeOf($)
   const ext = real.match(/\.[^./]+$/)?.[0] ?? ''
   state.generation += 1
