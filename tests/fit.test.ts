@@ -46,8 +46,9 @@ test('Windows paths stay whole, in the mixed form C:/x', () => {
 })
 
 test('long clips are sampled slower so they stay under 3600 frames', () => {
-  expect(sampleRate(10)).toBe(12)
-  // Five minutes still plays at the full rate.
+  expect(sampleRate(10)).toBe(24)
+  // Two and a half minutes still play at the full rate.
+  expect(sampleRate(150)).toBe(24)
   expect(sampleRate(300)).toBe(12)
   expect(sampleRate(600)).toBe(6)
   expect(sampleRate(20000)).toBe(1)

@@ -81,7 +81,9 @@ export function fit(width: number, height: number, maxCols: number, maxRows: num
 // The width a picture or clip is made at when it's prepared: what an inline
 // player in this terminal needs (see layoutOf). 1600 px at most while unmeasured.
 export function frameWidth(width: number, height: number, term: { columns: number; rows: number } | null, px: Cell | null) {
-  if (!term || !px || !width || !height) return Math.min(1600, width)
+  // Windows reports no cell size (no tty ioctl): frames stay small enough for
+  // a terminal to load 24 a second.
+  if (!term || !px || !width || !height) return Math.min(state.isWindows ? 640 : 1600, width)
   const layout = layoutOf({ columns: term.columns, rows: term.rows, isPane: false, hasReport: false })
   return pixelsFor(targetBox(width, height, layout, px), px, width / height)
 }

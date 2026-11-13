@@ -40,7 +40,7 @@ export const VIDEO = /\.(mp4|mov|m4v|webm|mkv|avi|gif)$/i
 // chunks are ever on disk, so it can run to MAX_STREAMED at the full rate.
 const MAX_FRAMES = 900
 const MAX_STREAMED = 3600
-const MAX_FPS = 12
+const MAX_FPS = 24
 
 // A Windows path (C:\x, C:/x or \\server\share): its backslashes are
 // separators, not escapes, and it is whole on its own.

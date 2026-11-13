@@ -86,7 +86,9 @@ export function fit(width: number, height: number, maxCols: number, maxRows: num
 // The width a picture or clip is made at when it's prepared: what an inline
 // player in this terminal needs (see layoutOf). 1600 px at most while unmeasured.
 export function frameWidth(width: number, height: number, term: { columns: number; rows: number } | null, px: Cell | null) {
-  if (!term || !px || !width || !height) return Math.min(1600, width)
+  // Windows reports no cell size (no tty ioctl): frames stay small enough for
+  // a terminal to load 24 a second.
+  if (!term || !px || !width || !height) return Math.min(state.isWindows ? 640 : 1600, width)
   const layout = layoutOf({ columns: term.columns, rows: term.rows, isPane: false, hasReport: false })
   return pixelsFor(targetBox(width, height, layout, px), px, width / height)
 }
@@ -341,7 +343,7 @@ export const VIDEO = /\.(mp4|mov|m4v|webm|mkv|avi|gif)$/i
 // chunks are ever on disk, so it can run to MAX_STREAMED at the full rate.
 const MAX_FRAMES = 900
 const MAX_STREAMED = 3600
-const MAX_FPS = 12
+const MAX_FPS = 24
 
 // A Windows path (C:\x, C:/x or \\server\share): its backslashes are
 // separators, not escapes, and it is whole on its own.
