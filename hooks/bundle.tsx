@@ -496,7 +496,6 @@ export const isPage = (path: string) => /\.html?$/i.test(path)
 // viewer carries none of their logins.
 // Each path segment percent-encoded, so a name with spaces, `#`, `%` or `?`
 // names the right file.
-const fileUrl = (page: string) => `file://${page.split('/').map(encodeURIComponent).join('/')}`
 export const htmlOpenArgv = (chrome: string, page: string) => [
   chrome, '--no-first-run', '--no-default-browser-check', `--app=${fileUrl(page)}`, '--window-size=960,720',
   `--user-data-dir=${state.TMP}/page-viewer.profile`,
@@ -1662,10 +1661,6 @@ export const DOC_MAX_PAGES = 100
 
 // ── Markdown to HTML, escaped first ───────────────────────────────────────
 
-// A path into a file URL, percent-encoded a segment at a time: nothing in the
-// name can close the attribute or inject markup.
-const encodeDir = (path: string) => path.split('/').map(encodeURIComponent).join('/')
-
 const escapeText = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -1769,7 +1764,7 @@ export function documentHtml(text: string, title: string, base: string, mermaidP
   const body = parsed.body
   const graphs = scriptJson(parsed.diagrams)
   const doc = `<!doctype html><meta charset="utf-8"><title>${escapeText(title)}</title>
-<base href="file://${encodeDir(base)}">
+<base href="${fileUrl(base)}">
 <style>@page{margin:18mm 16mm}
 :root{--ink:#1a1d23;--dim:#5b6472;--line:#e3e6ea;--wash:#f5f6f8}
 html{-webkit-text-size-adjust:100%}
@@ -1788,7 +1783,7 @@ a{color:#0b57d0;text-decoration:none}a:hover{text-decoration:underline}
 hr{border:0;border-top:1px solid var(--line);margin:1.8em 0}
 .mmd{margin:1.2em 0}.mmd.wide{margin:0}.mmd svg{max-width:100%}</style>
 ${body}
-<script src="file://${encodeDir(mermaidPath)}"></script>
+<script src="${fileUrl(mermaidPath)}"></script>
 <script>mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'});
 const G=${graphs};const all=[...document.querySelectorAll('.mmd')];
 (async()=>{for(const el of all){try{el.innerHTML=(await mermaid.render('m'+el.dataset.i,G[+el.dataset.i])).svg}catch(e){el.innerHTML='<pre class="mmd-error"></pre>';el.dataset.error=String(e)}el.removeAttribute('data-i')}
@@ -4470,6 +4465,13 @@ export const settings: Record<Field, boolean> = { stable_updates: true, usage_st
 
 // Windows: the Unix tools this plugin runs live in Git for Windows' usr/bin,
 // which is not on the Windows PATH. run() names them in full there.
+// A path as a file URL, percent-encoded a segment at a time so nothing in the
+// name can close an attribute. A Windows drive path C:/x needs file:///C:/x.
+export const fileUrl = (path: string) => {
+  const drive = /^[A-Za-z]:(?=\/)/.exec(path)?.[0] ?? ''
+  return `file://${drive ? '/' + drive : ''}${path.slice(drive.length).split('/').map(encodeURIComponent).join('/')}`
+}
+
 export const UNIX_TOOLS = new Set(['sh', 'mkdir', 'rm', 'mv', 'cp', 'touch', 'cat', 'mktemp', 'cygpath', 'uname', 'id', 'pwd'])
 
 export function winArgv(argv: string[], gitBin: string): string[] {
@@ -5300,7 +5302,7 @@ export function setUp($: EngineInterface): Promise<void> {
     if (picked && picked.exitCode === 0 && picked.stdout.trim().startsWith('/')) state.TMP = picked.stdout.trim()
     // A login shell finds ffmpeg where the person's profile puts it; one that
     // hangs gets five seconds, then a plain shell and the usual places.
-    const where = 'echo "home=$HOME"; echo "ff=$(command -v ffmpeg)"; echo "fp=$(command -v ffprobe)"; echo "fy=$(command -v ffplay)"; echo "cl=$(command -v claude)"; echo "os=$(uname -s)"; echo "ch=$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || { p=; for a in "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome "$HOME"/Library/Caches/ms-playwright/chromium-*/chrome-mac*/*.app/Contents/MacOS/* "/Applications/Chromium.app/Contents/MacOS/Chromium" "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-*/*headless*shell "$HOME"/Library/Caches/ms-playwright/chromium_headless_shell-*/chrome-*/*headless*shell; do [ -f "$a" ] && [ -x "$a" ] && p=$a; done; echo "$p"; })"; echo "pp=$(command -v pdftoppm)"; echo "pi=$(command -v pdfinfo)"'
+    const where = 'echo "home=$HOME"; echo "ff=$(command -v ffmpeg)"; echo "fp=$(command -v ffprobe)"; echo "fy=$(command -v ffplay)"; echo "cl=$(command -v claude)"; echo "os=$(uname -s)"; echo "ch=$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || { p=; for a in "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome "$HOME"/Library/Caches/ms-playwright/chromium-*/chrome-mac*/*.app/Contents/MacOS/* "/Applications/Chromium.app/Contents/MacOS/Chromium" "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" "$HOME"/AppData/Local/ms-playwright/chromium-*/chrome-win*/chrome.exe "/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "/c/Program Files/Google/Chrome/Application/chrome.exe" "$HOME"/AppData/Local/Google/Chrome/Application/chrome.exe "/c/Program Files/Microsoft/Edge/Application/msedge.exe" "/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-*/*headless*shell "$HOME"/Library/Caches/ms-playwright/chromium_headless_shell-*/chrome-*/*headless*shell "$HOME"/AppData/Local/ms-playwright/chromium_headless_shell-*/chrome-*/*headless*shell.exe; do [ -f "$a" ] && [ -x "$a" ] && p=$a; done; echo "$p"; })"; echo "pp=$(command -v pdftoppm)"; echo "pi=$(command -v pdfinfo)"'
     const run = (flag: string) => tryRun(['sh', flag, where], { timeoutMs: 5000 })
     const login = await run('-lc')
     const env = (login?.stdout.includes('os=') ? login : await run('-c')) ?? { stdout: '', stderr: '', exitCode: 1 }
@@ -5326,7 +5328,8 @@ export function setUp($: EngineInterface): Promise<void> {
     state.ffprobe = got('fp') || (state.isMac ? '/opt/homebrew/bin/ffprobe' : '/usr/bin/ffprobe')
     state.claudePath = got('cl')
     // Else the last one there of: Playwright's Chromium builds, Chromium and
-    // Chrome in /Applications, then Playwright's headless shells (newest
+    // Chrome in /Applications; on Windows Chrome, then Edge, which every
+    // Windows 11 has; then Playwright's headless shells (newest
     // last). A headless shell is made for screenshots: Playwright's Chrome
     // for Testing 1234 never wrote one on macOS and hung. It opens no window,
     // so Open page uses the default browser. With none, the install notice
