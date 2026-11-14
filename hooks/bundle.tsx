@@ -4467,7 +4467,10 @@ export const settings: Record<Field, boolean> = { stable_updates: true, usage_st
 // which is not on the Windows PATH. run() names them in full there.
 // A path as a file URL, percent-encoded a segment at a time so nothing in the
 // name can close an attribute. A Windows drive path C:/x needs file:///C:/x.
-export const fileUrl = (path: string) => {
+export const fileUrl = (raw: string) => {
+  // Claude Code may hand over C:\x\y (the plugin's own folder does): a drive
+  // path's backslashes become slashes first.
+  const path = /^[A-Za-z]:\\/.test(raw) ? raw.replace(/\\/g, '/') : raw
   const drive = /^[A-Za-z]:(?=\/)/.exec(path)?.[0] ?? ''
   return `file://${drive ? '/' + drive : ''}${path.slice(drive.length).split('/').map(encodeURIComponent).join('/')}`
 }
