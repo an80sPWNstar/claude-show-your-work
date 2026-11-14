@@ -113,6 +113,13 @@ export const settings: Record<Field, boolean> = { stable_updates: true, usage_st
 
 // Windows: the Unix tools this plugin runs live in Git for Windows' usr/bin,
 // which is not on the Windows PATH. run() names them in full there.
+// A path as a file URL, percent-encoded a segment at a time so nothing in the
+// name can close an attribute. A Windows drive path C:/x needs file:///C:/x.
+export const fileUrl = (path: string) => {
+  const drive = /^[A-Za-z]:(?=\/)/.exec(path)?.[0] ?? ''
+  return `file://${drive ? '/' + drive : ''}${path.slice(drive.length).split('/').map(encodeURIComponent).join('/')}`
+}
+
 export const UNIX_TOOLS = new Set(['sh', 'mkdir', 'rm', 'mv', 'cp', 'touch', 'cat', 'mktemp', 'cygpath', 'uname', 'id', 'pwd'])
 
 export function winArgv(argv: string[], gitBin: string): string[] {

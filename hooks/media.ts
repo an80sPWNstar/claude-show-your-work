@@ -4,7 +4,7 @@ import type { EngineInterface } from 'claude-code'
 
 import type { Check, Frames, Shown } from '../types'
 
-import { runTool, state } from './state'
+import { fileUrl, runTool, state } from './state'
 import { frameWidth, PX_MAX, SIDEBAR } from './layout'
 import { debug } from './diagnostics'
 
@@ -193,7 +193,6 @@ export const isPage = (path: string) => /\.html?$/i.test(path)
 // viewer carries none of their logins.
 // Each path segment percent-encoded, so a name with spaces, `#`, `%` or `?`
 // names the right file.
-const fileUrl = (page: string) => `file://${page.split('/').map(encodeURIComponent).join('/')}`
 export const htmlOpenArgv = (chrome: string, page: string) => [
   chrome, '--no-first-run', '--no-default-browser-check', `--app=${fileUrl(page)}`, '--window-size=960,720',
   `--user-data-dir=${state.TMP}/page-viewer.profile`,

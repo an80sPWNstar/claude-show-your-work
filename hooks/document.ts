@@ -6,7 +6,7 @@ import type { EngineInterface } from 'claude-code'
 
 import type { Shown } from '../types'
 
-import { runTool, state } from './state'
+import { fileUrl, runTool, state } from './state'
 
 export const DOCUMENT = /\.(pdf|md|markdown|mmd|mermaid)$/i
 export const isDocument = (path: string) => DOCUMENT.test(path)
@@ -21,10 +21,6 @@ export const MD_MAX_BYTES = 1_048_576
 export const DOC_MAX_PAGES = 100
 
 // ── Markdown to HTML, escaped first ───────────────────────────────────────
-
-// A path into a file URL, percent-encoded a segment at a time: nothing in the
-// name can close the attribute or inject markup.
-const encodeDir = (path: string) => path.split('/').map(encodeURIComponent).join('/')
 
 const escapeText = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -129,7 +125,7 @@ export function documentHtml(text: string, title: string, base: string, mermaidP
   const body = parsed.body
   const graphs = scriptJson(parsed.diagrams)
   const doc = `<!doctype html><meta charset="utf-8"><title>${escapeText(title)}</title>
-<base href="file://${encodeDir(base)}">
+<base href="${fileUrl(base)}">
 <style>@page{margin:18mm 16mm}
 :root{--ink:#1a1d23;--dim:#5b6472;--line:#e3e6ea;--wash:#f5f6f8}
 html{-webkit-text-size-adjust:100%}
@@ -148,7 +144,7 @@ a{color:#0b57d0;text-decoration:none}a:hover{text-decoration:underline}
 hr{border:0;border-top:1px solid var(--line);margin:1.8em 0}
 .mmd{margin:1.2em 0}.mmd.wide{margin:0}.mmd svg{max-width:100%}</style>
 ${body}
-<script src="file://${encodeDir(mermaidPath)}"></script>
+<script src="${fileUrl(mermaidPath)}"></script>
 <script>mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'});
 const G=${graphs};const all=[...document.querySelectorAll('.mmd')];
 (async()=>{for(const el of all){try{el.innerHTML=(await mermaid.render('m'+el.dataset.i,G[+el.dataset.i])).svg}catch(e){el.innerHTML='<pre class="mmd-error"></pre>';el.dataset.error=String(e)}el.removeAttribute('data-i')}
